@@ -32,6 +32,9 @@ public class CameraTarget : MonoBehaviour
     private float targetTilt;
     private float currentSpeed;
 
+    [SerializeField] private GameManager gameManager;
+    [SerializeField] private Transform respawnPoint;
+
     void Start()
     {
         moveAction = InputSystem.actions.FindAction("Move");
@@ -43,33 +46,42 @@ public class CameraTarget : MonoBehaviour
 
     void LateUpdate()
     {
-        LTurnHeld = LTurnAction.IsPressed();
-        RTurnHeld = RTurnAction.IsPressed();
-
-
-        transform.position = bullet.position;
-
-        // Copy the bullet's direction, but remove roll
-        Vector3 direction = bullet.forward;
-        transform.rotation = Quaternion.LookRotation(direction, Vector3.up);
-
-
-        if (LTurnHeld)
+        if (gameManager.CurrentState == GameManager.PlayerState.Aim)
         {
-            TriggerCameraOffset(-1.5f);
+            transform.position = respawnPoint.position;
         }
 
-        if (RTurnHeld)
+        if (gameManager.CurrentState == GameManager.PlayerState.Flight)
         {
-            TriggerCameraOffset(1.5f);
+
+            LTurnHeld = LTurnAction.IsPressed();
+            RTurnHeld = RTurnAction.IsPressed();
+
+            transform.position = bullet.position;
+
+            // Copy the bullet's direction, but remove roll
+            Vector3 direction = bullet.forward;
+            transform.rotation = Quaternion.LookRotation(direction, Vector3.up);
+
+
+            if (LTurnHeld)
+            {
+                TriggerCameraOffset(-1.5f);
+            }
+
+            if (RTurnHeld)
+            {
+                TriggerCameraOffset(1.5f);
+            }
+
+            if (!LTurnHeld && !RTurnHeld)
+            {
+                HoriCameraOffset();
+            }
+
+            VertCameraOffset();
         }
 
-        if (!LTurnHeld && !RTurnHeld)
-        {
-            HoriCameraOffset();
-        }
-
-        VertCameraOffset();
     }
 
     void HoriCameraOffset()
@@ -121,5 +133,10 @@ public class CameraTarget : MonoBehaviour
 
         // Apply the offset along the camera target's local X axis
         transform.position += transform.right * currentShift;
+    }
+
+    public void SetBullet(Transform newBullet)
+    {
+        bullet = newBullet;
     }
 }
