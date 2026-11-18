@@ -25,7 +25,7 @@ public class BulletScript : MonoBehaviour
     //private bool ShootPressed;
 
     private float bulletSpeed = 40f;
-    private float normalSpeed = 40f;
+    private float normalSpeed = 60f;
     private float dashSpeed = 80f;
     private float horiTurnSpeed = 150f;
     private float vertTurnSpeed = 100f;
@@ -48,11 +48,16 @@ public class BulletScript : MonoBehaviour
     private bool canDodge = true;
 
     [SerializeField] private GameManager gameManager;
+    [SerializeField] private ScoreManager scoreManager;
+
+    private bool isFalling = false;
 
 
     void Start()
     {
         rb = GetComponent<Rigidbody>();
+        rb.useGravity = false;
+
         myMoveAction = InputSystem.actions.FindAction("Move");
         LTurnAction = InputSystem.actions.FindAction("LeftTurn");
         RTurnAction = InputSystem.actions.FindAction("RightTurn");
@@ -77,6 +82,8 @@ public class BulletScript : MonoBehaviour
 
     void Update()
     {
+        if (isFalling) return;
+
         Vector2 moveInput = myMoveAction.ReadValue<Vector2>();
         LTurnHeld = LTurnAction.IsPressed();
         RTurnHeld = RTurnAction.IsPressed();
@@ -137,28 +144,47 @@ public class BulletScript : MonoBehaviour
     {
         if (other.CompareTag("Target"))
         {
+            TargetScript target = other.GetComponentInParent<TargetScript>();
 
-            Rigidbody otherRb = other.GetComponentInParent<Rigidbody>();
-
-            if (otherRb != null)
+            if (target != null && target.TryHit())
             {
+                // Award points
+                //scoreManager.AddPoints(target.data.points);
 
-                Vector3 impactDirection = transform.forward;
-                Vector3 impactPoint = other.ClosestPoint(transform.position);
+                // Spawn target-specific particle effect
+                if (target.data.hitEffect != null)
+                {
+                    Vector3 impactPoint = other.ClosestPoint(transform.position);
 
-                otherRb.AddForceAtPosition(
-                    impactDirection * 200f,
-                    impactPoint,
-                    ForceMode.Impulse
-                );
+                    Instantiate(
+                        target.data.hitEffect,
+                        impactPoint,
+                        Quaternion.identity
+                    );
+                }
+
+                // Apply impact force
+                Rigidbody otherRb = other.GetComponentInParent<Rigidbody>();
+
+                if (otherRb != null)
+                {
+                    Vector3 impactDirection = transform.forward;
+
+                    Vector3 impactPoint = other.ClosestPoint(transform.position);
+
+                    otherRb.AddForceAtPosition(
+                        impactDirection * 200f,
+                        impactPoint,
+                        ForceMode.Impulse
+                    );
+                }
             }
-
         }
 
         if (other.CompareTag("Obstacle"))
         {
-            Destroy(gameObject);
             gameManager.bulletHit = true;
+            BeginFall();
         }
     }
 
@@ -182,4 +208,14 @@ public class BulletScript : MonoBehaviour
         canDodge = true;
     }
 
+    public void BeginFall()
+    {
+        if (isFalling) return;
+
+        isFalling = true;
+
+        rb.useGravity = true;
+
+        rb.linearVelocity = transform.forward * bulletSpeed * 1.5f;
+    }
 }
