@@ -55,6 +55,8 @@ public class GameManager : MonoBehaviour
     [SerializeField] private GameObject resultsPanel;
     [SerializeField] private GameObject crosshair;
 
+    public GameObject SpeedEffect;
+
     public enum PlayerState
     {
         Aim,
@@ -135,6 +137,8 @@ public class GameManager : MonoBehaviour
 
             thirdPersonFollow.Damping = new Vector3(0f, 0f, 0f);
 
+            scoreManager.ScoreRunReset();
+
             cameraSet = true;
         }
 
@@ -159,6 +163,8 @@ public class GameManager : MonoBehaviour
         {
             bulletSpawned = false;
 
+            SpeedEffect.SetActive(true);
+
             GameObject newBullet = Instantiate(bulletPrefab, respawnPoint.position, respawnPoint.rotation);
             
             currentBulletRb = newBullet.GetComponent<Rigidbody>();
@@ -169,8 +175,11 @@ public class GameManager : MonoBehaviour
         {
             fallTimer = 0f;
             resultsReady = false;
+            SpeedEffect.SetActive(false);
 
             cameraTarget.BeginHitFollow();
+
+            scoreManager.ScoreTotalText();
 
             currentState = PlayerState.Hit;
         }
@@ -178,7 +187,7 @@ public class GameManager : MonoBehaviour
 
     void HitState(bool ShootPressed)
     {
-        
+
         fallTimer += Time.deltaTime;
 
         bool bulletStopped = currentBulletRb.linearVelocity.sqrMagnitude

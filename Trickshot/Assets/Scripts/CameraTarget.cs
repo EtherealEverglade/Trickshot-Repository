@@ -56,6 +56,8 @@ public class CameraTarget : MonoBehaviour
     private Vector3 hitCameraTargetPosition;
     private Vector3 hitHorizontalDirection;
 
+    [SerializeField] private ScoreManager scoreManager;
+
 
     void Start()
     {
@@ -72,7 +74,7 @@ public class CameraTarget : MonoBehaviour
     void LateUpdate()
     {
 
-        if (gameManager.CurrentState == GameManager.PlayerState.Flight)
+        if (gameManager.CurrentState == GameManager.PlayerState.Flight && bullet != null)
         {
 
             LTurnHeld = LTurnAction.IsPressed();

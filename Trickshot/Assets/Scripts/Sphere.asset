@@ -15,5 +15,5 @@ MonoBehaviour:
   targetName: Sphere
   category: 0
   objectType: 0
-  points: 5
+  points: 50
   hitEffect: {fileID: 8601264917354143907, guid: 79015e6d69e3c524481e93834ac315a6, type: 3}

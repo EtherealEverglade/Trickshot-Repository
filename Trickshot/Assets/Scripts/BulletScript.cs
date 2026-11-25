@@ -25,7 +25,7 @@ public class BulletScript : MonoBehaviour
     //private bool ShootPressed;
 
     private float bulletSpeed = 40f;
-    private float normalSpeed = 60f;
+    private float normalSpeed = 40f; 
     private float dashSpeed = 80f;
     private float horiTurnSpeed = 150f;
     private float vertTurnSpeed = 100f;
@@ -41,7 +41,7 @@ public class BulletScript : MonoBehaviour
 
 
     [Header("Dodge")]
-    private float dodgeSpeed = 100f;
+    private float dodgeSpeed = 200f;
     private float dodgeDuration = 0.1f;
     private float dodgeCooldown = 0.5f;
 
@@ -57,6 +57,7 @@ public class BulletScript : MonoBehaviour
     {
         rb = GetComponent<Rigidbody>();
         rb.useGravity = false;
+        rb.isKinematic = true;
 
         myMoveAction = InputSystem.actions.FindAction("Move");
         LTurnAction = InputSystem.actions.FindAction("LeftTurn");
@@ -77,6 +78,11 @@ public class BulletScript : MonoBehaviour
         if (gameManager == null)
         {
             gameManager = FindFirstObjectByType<GameManager>();
+        }
+
+        if (scoreManager == null)
+        {
+            scoreManager = FindFirstObjectByType<ScoreManager>();
         }
     }
 
@@ -107,18 +113,16 @@ public class BulletScript : MonoBehaviour
             currentYaw += moveInput.x * horiTurnSpeed * Time.deltaTime;
         }
 
+        currentYaw = Mathf.Repeat(currentYaw, 360f);
+
         // vertical tilt
         currentTilt -= moveInput.y * vertTurnSpeed * Time.deltaTime;
 
         // Keep tilt within limits
         currentTilt = Mathf.Clamp(currentTilt, minTilt, maxTilt);
 
-        // Apply the rotation from tracked angles
-        transform.rotation = Quaternion.Euler(
-            currentTilt,
-            currentYaw,
-            0f
-        );
+        //Quaternion targetRotation = Quaternion.Euler(currentTilt, currentYaw, 0f);
+
 
         if (dodgeAction.WasPressedThisFrame() && canDodge)
         {
@@ -136,20 +140,44 @@ public class BulletScript : MonoBehaviour
         }
 
         // Always move forward
-        transform.position += transform.forward * bulletSpeed * Time.deltaTime;
+        //transform.position += transform.forward * bulletSpeed * Time.deltaTime;
+    }
+
+    void FixedUpdate()
+    {
+        if (isFalling) return;
+
+        Quaternion targetRotation = Quaternion.Euler(
+            currentTilt,
+            currentYaw,
+            0f
+        );
+
+        rb.MoveRotation(targetRotation);
+
+        rb.MovePosition(
+            rb.position + targetRotation * Vector3.forward
+            * bulletSpeed * Time.fixedDeltaTime
+        );
     }
 
 
-    void OnTriggerEnter(Collider other)
+    void OnCollisionEnter(Collision collision)
     {
+        Collider other = collision.collider;
+
+        //TargetScript target = other.GetComponentInParent<TargetScript>();
+
         if (other.CompareTag("Target"))
         {
             TargetScript target = other.GetComponentInParent<TargetScript>();
 
+            Debug.Log("Hit target!");
+
             if (target != null && target.TryHit())
             {
                 // Award points
-                //scoreManager.AddPoints(target.data.points);
+                scoreManager.AddScore(target.data.points);
 
                 // Spawn target-specific particle effect
                 if (target.data.hitEffect != null)
@@ -181,11 +209,17 @@ public class BulletScript : MonoBehaviour
             }
         }
 
+        
+    }
+
+    void OnTriggerEnter(Collider other)
+    {
         if (other.CompareTag("Obstacle"))
         {
             gameManager.bulletHit = true;
             BeginFall();
         }
+
     }
 
     IEnumerator Dodge(float direction)
@@ -215,7 +249,8 @@ public class BulletScript : MonoBehaviour
         isFalling = true;
 
         rb.useGravity = true;
+        rb.isKinematic = false;
 
-        rb.linearVelocity = transform.forward * bulletSpeed * 1.5f;
+        //rb.linearVelocity = transform.forward * bulletSpeed * 1.2f;
     }
 }
