@@ -1,12 +1,14 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using Unity.Cinemachine;
+using UnityEngine.EventSystems;
 
 public class GameManager : MonoBehaviour
 {
     private InputAction shootAction;
 
-    private InputAction myLookAction;
+    private InputAction myMoveAction;
 
     private bool LTurnPressed;
     private bool LTurnHeld;
@@ -25,14 +27,39 @@ public class GameManager : MonoBehaviour
     public bool bulletHit = false;
 
 
-    private float myLookSpeed = 50f;
-    private float myLookAngle = 0f;
-
     [SerializeField] private Transform respawnPoint;
-    private bool cameraSet = false;
+    public bool cameraSet = false;
     [SerializeField] GameObject bulletPrefab;
-    [SerializeField] private Transform camera;
+    //[SerializeField] private Transform camera;
     [SerializeField] private Vector3 cameraOffset;
+
+    [SerializeField] private ScoreManager scoreManager;
+    [SerializeField] private CinemachineThirdPersonFollow thirdPersonFollow;
+
+    private Quaternion startingSpawnRotation;
+
+    private float aimYaw;
+    private float aimTilt;
+
+    [SerializeField] private float aimTurnSpeed = 150f;
+    [SerializeField] private float aimTiltSpeed = 100f;
+    [SerializeField] private float minTilt = -45f;
+    [SerializeField] private float maxTilt = 45f;
+
+    [SerializeField] private float maxFallTime = 3f;
+    [SerializeField] private float stopSpeed = 0.2f;
+
+    private float fallTimer;
+    private Rigidbody currentBulletRb;
+    private bool resultsReady;
+
+    [SerializeField] private GameObject resultsPanel;
+    [SerializeField] private GameObject crosshair;
+
+    public GameObject SpeedEffect;
+
+    [SerializeField] private GameObject continueButton;
+    private bool blockShootInput;
 
     public enum PlayerState
     {
@@ -49,14 +76,26 @@ public class GameManager : MonoBehaviour
     void Start()
     {
         shootAction = InputSystem.actions.FindAction("Shoot");
-        myLookAction = InputSystem.actions.FindAction("Look");
+        myMoveAction = InputSystem.actions.FindAction("Move");
+
+        startingSpawnRotation = respawnPoint.rotation;
+        resultsPanel.SetActive(false);
+        crosshair.SetActive(true);
 
         currentState = PlayerState.Aim;
     }
 
     void Update()
     {
-        ShootPressed = shootAction.WasPressedThisFrame();
+        if (blockShootInput)
+        {
+            blockShootInput = false;
+            ShootPressed = false;
+        }
+        else
+        {
+            ShootPressed = shootAction.WasPressedThisFrame();
+        }
 
         HandleState(ShootPressed);
     }
@@ -83,16 +122,18 @@ public class GameManager : MonoBehaviour
 
     void LookInput()
     {
-        Vector2 LookDirection = myLookAction.ReadValue<Vector2>();
+        Vector2 MoveDirection = myMoveAction.ReadValue<Vector2>();
 
-        // Rotate the camera vertically
-        myLookAngle += LookDirection.y * myLookSpeed * Time.deltaTime;
-        myLookAngle = Mathf.Clamp(myLookAngle, -70f, 70f);
+        // Horizontal rotation
+        aimYaw += MoveDirection.x * aimTurnSpeed * Time.deltaTime;
 
-        camera.localRotation = Quaternion.Euler(-myLookAngle, 0f, 0f);
+        // Vertical rotation
+        aimTilt -= MoveDirection.y * aimTiltSpeed * Time.deltaTime;
+        aimTilt = Mathf.Clamp(aimTilt, minTilt, maxTilt);
 
-        // Keep the camera at its intended position
-        camera.position = transform.position + transform.TransformDirection(cameraOffset);
+        // Apply rotation relative to the original spawn rotation
+        respawnPoint.rotation = startingSpawnRotation *
+            Quaternion.Euler(aimTilt, aimYaw, 0f);
     }
 
 
@@ -100,21 +141,31 @@ public class GameManager : MonoBehaviour
     {
         if (!cameraSet)
         {
-            // Set camera position and rotation here
+            crosshair.SetActive(true);
+            aimYaw = 0f;
+            aimTilt = 0f;
+
+            respawnPoint.rotation = startingSpawnRotation;
+
+            thirdPersonFollow.Damping = new Vector3(0f, 0f, 0f);
+
+            scoreManager.ScoreRunReset();
 
             cameraSet = true;
         }
 
         LookInput();
 
-
         if (ShootPressed)
         {
             cameraSet = false;
+
+            thirdPersonFollow.Damping = new Vector3(0f, 0f, 1f);
+
+            crosshair.SetActive(false);
             currentState = PlayerState.Flight;
             bulletSpawned = true;
         }
-
     }
 
     void FlightState(bool ShootPressed)
@@ -124,19 +175,69 @@ public class GameManager : MonoBehaviour
         {
             bulletSpawned = false;
 
-            GameObject newBullet = Instantiate(bulletPrefab, respawnPoint);
+            SpeedEffect.SetActive(true);
+
+            GameObject newBullet = Instantiate(bulletPrefab, respawnPoint.position, respawnPoint.rotation);
+            
+            currentBulletRb = newBullet.GetComponent<Rigidbody>();
             cameraTarget.SetBullet(newBullet.transform);
         }
         
         if (bulletHit)
         {
+            fallTimer = 0f;
+            resultsReady = false;
+            SpeedEffect.SetActive(false);
+
+            cameraTarget.BeginHitFollow();
+
+            scoreManager.ScoreTotalText();
+
             currentState = PlayerState.Hit;
         }
     }
 
     void HitState(bool ShootPressed)
     {
+
+        fallTimer += Time.deltaTime;
+
+        bool bulletStopped = currentBulletRb.linearVelocity.sqrMagnitude
+            < stopSpeed * stopSpeed;
+
+        if (fallTimer >= maxFallTime || bulletStopped)
+        {
+            if (!resultsReady)
+            {
+                resultsReady = true;
+                ShowResults();
+            }
+        }
+    }
+
+    void ShowResults()
+    {
+        resultsPanel.SetActive(true);
+
+        EventSystem.current.SetSelectedGameObject(continueButton);
+    }
+
+    public void Continue()
+    {
+        blockShootInput = true;
+
+        resultsPanel.SetActive(false);
+
+        if (currentBulletRb != null)
+        {
+            Destroy(currentBulletRb.gameObject);
+            currentBulletRb = null;
+        }
+
         bulletHit = false;
+        cameraSet = false;
+        resultsReady = false;
+
         currentState = PlayerState.Aim;
     }
 }

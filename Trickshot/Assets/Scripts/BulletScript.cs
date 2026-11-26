@@ -24,8 +24,8 @@ public class BulletScript : MonoBehaviour
 
     //private bool ShootPressed;
 
-    private float bulletSpeed = 40f;
-    private float normalSpeed = 40f;
+    private float bulletSpeed = 50f;
+    private float normalSpeed = 50f; 
     private float dashSpeed = 80f;
     private float horiTurnSpeed = 150f;
     private float vertTurnSpeed = 100f;
@@ -41,18 +41,26 @@ public class BulletScript : MonoBehaviour
 
 
     [Header("Dodge")]
-    private float dodgeSpeed = 100f;
+    private float dodgeSpeed = 200f;
     private float dodgeDuration = 0.1f;
     private float dodgeCooldown = 0.5f;
 
     private bool canDodge = true;
 
     [SerializeField] private GameManager gameManager;
+    [SerializeField] private ScoreManager scoreManager;
+
+    private bool isFalling = false;
+
+    public GameObject HitEffect;
 
 
     void Start()
     {
         rb = GetComponent<Rigidbody>();
+        rb.useGravity = false;
+        rb.isKinematic = true;
+
         myMoveAction = InputSystem.actions.FindAction("Move");
         LTurnAction = InputSystem.actions.FindAction("LeftTurn");
         RTurnAction = InputSystem.actions.FindAction("RightTurn");
@@ -73,10 +81,19 @@ public class BulletScript : MonoBehaviour
         {
             gameManager = FindFirstObjectByType<GameManager>();
         }
+
+        if (scoreManager == null)
+        {
+            scoreManager = FindFirstObjectByType<ScoreManager>();
+        }
+
+        HitEffect.SetActive(false);
     }
 
     void Update()
     {
+        if (isFalling) return;
+
         Vector2 moveInput = myMoveAction.ReadValue<Vector2>();
         LTurnHeld = LTurnAction.IsPressed();
         RTurnHeld = RTurnAction.IsPressed();
@@ -100,18 +117,16 @@ public class BulletScript : MonoBehaviour
             currentYaw += moveInput.x * horiTurnSpeed * Time.deltaTime;
         }
 
+        currentYaw = Mathf.Repeat(currentYaw, 360f);
+
         // vertical tilt
         currentTilt -= moveInput.y * vertTurnSpeed * Time.deltaTime;
 
         // Keep tilt within limits
         currentTilt = Mathf.Clamp(currentTilt, minTilt, maxTilt);
 
-        // Apply the rotation from tracked angles
-        transform.rotation = Quaternion.Euler(
-            currentTilt,
-            currentYaw,
-            0f
-        );
+        //Quaternion targetRotation = Quaternion.Euler(currentTilt, currentYaw, 0f);
+
 
         if (dodgeAction.WasPressedThisFrame() && canDodge)
         {
@@ -129,20 +144,59 @@ public class BulletScript : MonoBehaviour
         }
 
         // Always move forward
-        transform.position += transform.forward * bulletSpeed * Time.deltaTime;
+        //transform.position += transform.forward * bulletSpeed * Time.deltaTime;
+    }
+
+    void FixedUpdate()
+    {
+        if (isFalling) return;
+
+        Quaternion targetRotation = Quaternion.Euler(
+            currentTilt,
+            currentYaw,
+            0f
+        );
+
+        rb.MoveRotation(targetRotation);
+
+        rb.MovePosition(
+            rb.position + targetRotation * Vector3.forward
+            * bulletSpeed * Time.fixedDeltaTime
+        );
     }
 
 
-    void OnTriggerEnter(Collider other)
+
+    void OnCollisionEnter(Collision collision)
     {
+        Collider other = collision.collider;
+
         if (other.CompareTag("Target"))
         {
+            TargetScript target = other.GetComponentInParent<TargetScript>();
 
+            if (target == null || target.data == null)
+                return;
+
+            if (!target.TryHit())
+                return;
+
+            // Check whether the target is glass then break
+            if (target.data.objectType == TargetObjectType.glass)
+            {
+                Destroy(target.gameObject);
+                return;
+            }
+
+            scoreManager.AddScore(target.data.points);
+
+            StartCoroutine(ShowHitEffect());
+
+            // Apply impact force
             Rigidbody otherRb = other.GetComponentInParent<Rigidbody>();
 
             if (otherRb != null)
             {
-
                 Vector3 impactDirection = transform.forward;
                 Vector3 impactPoint = other.ClosestPoint(transform.position);
 
@@ -152,14 +206,18 @@ public class BulletScript : MonoBehaviour
                     ForceMode.Impulse
                 );
             }
-
         }
+    }
 
+
+    void OnTriggerEnter(Collider other)
+    {
         if (other.CompareTag("Obstacle"))
         {
-            Destroy(gameObject);
             gameManager.bulletHit = true;
+            BeginFall();
         }
+
     }
 
     IEnumerator Dodge(float direction)
@@ -182,4 +240,24 @@ public class BulletScript : MonoBehaviour
         canDodge = true;
     }
 
+    public void BeginFall()
+    {
+        if (isFalling) return;
+
+        isFalling = true;
+
+        rb.useGravity = true;
+        rb.isKinematic = false;
+
+        //rb.linearVelocity = transform.forward * bulletSpeed * 1.2f;
+    }
+
+    IEnumerator ShowHitEffect()
+    {
+        HitEffect.SetActive(true);
+
+        yield return new WaitForSeconds(.5f);
+
+        HitEffect.SetActive(false);
+    }
 }
