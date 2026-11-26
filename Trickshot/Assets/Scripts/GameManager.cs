@@ -2,6 +2,7 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using Unity.Cinemachine;
+using UnityEngine.EventSystems;
 
 public class GameManager : MonoBehaviour
 {
@@ -57,6 +58,9 @@ public class GameManager : MonoBehaviour
 
     public GameObject SpeedEffect;
 
+    [SerializeField] private GameObject continueButton;
+    private bool blockShootInput;
+
     public enum PlayerState
     {
         Aim,
@@ -83,7 +87,15 @@ public class GameManager : MonoBehaviour
 
     void Update()
     {
-        ShootPressed = shootAction.WasPressedThisFrame();
+        if (blockShootInput)
+        {
+            blockShootInput = false;
+            ShootPressed = false;
+        }
+        else
+        {
+            ShootPressed = shootAction.WasPressedThisFrame();
+        }
 
         HandleState(ShootPressed);
     }
@@ -206,10 +218,14 @@ public class GameManager : MonoBehaviour
     void ShowResults()
     {
         resultsPanel.SetActive(true);
+
+        EventSystem.current.SetSelectedGameObject(continueButton);
     }
 
     public void Continue()
     {
+        blockShootInput = true;
+
         resultsPanel.SetActive(false);
 
         if (currentBulletRb != null)

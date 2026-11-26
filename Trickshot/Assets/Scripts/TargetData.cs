@@ -8,7 +8,8 @@ public enum TargetCategory
 
 public enum TargetObjectType
 {
-    Sphere,
+    solid,
+    glass
 }
 
 [CreateAssetMenu(fileName = "New Target", menuName = "Game/Target Data")]

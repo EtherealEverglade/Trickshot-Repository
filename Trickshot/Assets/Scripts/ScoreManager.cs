@@ -104,10 +104,13 @@ public class ScoreManager : MonoBehaviour
 
     public void ScoreTotalText()
     {
-        ScoreTotalHUD.text = scoreTotal.ToString();
-        ScoreTotalScreen.text = scoreTotal.ToString();
+        int totalPoints = scoreTotal + scoreTotalRun;
 
-        levelManager.SetPoints(scoreTotal);
+        ScoreTotalHUD.text = totalPoints.ToString();
+        ScoreTotalScreen.text = totalPoints.ToString();
+
+        levelManager.SetPoints(totalPoints);
+        levelManager.UpdateStars(totalPoints);
     }
 
     public void ScoreRunReset()

@@ -40,8 +40,8 @@ public class LevelManager : MonoBehaviour
                 
             }
         }
-        
-        totalPossiblePoints *= 2;
+
+        totalPossiblePoints = Mathf.RoundToInt(totalPossiblePoints * 1.5f);
 
         // Generate star thresholds from the level's total points
         starThresholds[0] =

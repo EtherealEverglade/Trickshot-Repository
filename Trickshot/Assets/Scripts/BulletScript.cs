@@ -24,8 +24,8 @@ public class BulletScript : MonoBehaviour
 
     //private bool ShootPressed;
 
-    private float bulletSpeed = 40f;
-    private float normalSpeed = 40f; 
+    private float bulletSpeed = 50f;
+    private float normalSpeed = 50f; 
     private float dashSpeed = 80f;
     private float horiTurnSpeed = 150f;
     private float vertTurnSpeed = 100f;
@@ -51,6 +51,8 @@ public class BulletScript : MonoBehaviour
     [SerializeField] private ScoreManager scoreManager;
 
     private bool isFalling = false;
+
+    public GameObject HitEffect;
 
 
     void Start()
@@ -84,6 +86,8 @@ public class BulletScript : MonoBehaviour
         {
             scoreManager = FindFirstObjectByType<ScoreManager>();
         }
+
+        HitEffect.SetActive(false);
     }
 
     void Update()
@@ -162,55 +166,49 @@ public class BulletScript : MonoBehaviour
     }
 
 
+
     void OnCollisionEnter(Collision collision)
     {
         Collider other = collision.collider;
-
-        //TargetScript target = other.GetComponentInParent<TargetScript>();
 
         if (other.CompareTag("Target"))
         {
             TargetScript target = other.GetComponentInParent<TargetScript>();
 
-            Debug.Log("Hit target!");
+            if (target == null || target.data == null)
+                return;
 
-            if (target != null && target.TryHit())
+            if (!target.TryHit())
+                return;
+
+            // Check whether the target is glass then break
+            if (target.data.objectType == TargetObjectType.glass)
             {
-                // Award points
-                scoreManager.AddScore(target.data.points);
+                Destroy(target.gameObject);
+                return;
+            }
 
-                // Spawn target-specific particle effect
-                if (target.data.hitEffect != null)
-                {
-                    Vector3 impactPoint = other.ClosestPoint(transform.position);
+            scoreManager.AddScore(target.data.points);
 
-                    Instantiate(
-                        target.data.hitEffect,
-                        impactPoint,
-                        Quaternion.identity
-                    );
-                }
+            StartCoroutine(ShowHitEffect());
 
-                // Apply impact force
-                Rigidbody otherRb = other.GetComponentInParent<Rigidbody>();
+            // Apply impact force
+            Rigidbody otherRb = other.GetComponentInParent<Rigidbody>();
 
-                if (otherRb != null)
-                {
-                    Vector3 impactDirection = transform.forward;
+            if (otherRb != null)
+            {
+                Vector3 impactDirection = transform.forward;
+                Vector3 impactPoint = other.ClosestPoint(transform.position);
 
-                    Vector3 impactPoint = other.ClosestPoint(transform.position);
-
-                    otherRb.AddForceAtPosition(
-                        impactDirection * 200f,
-                        impactPoint,
-                        ForceMode.Impulse
-                    );
-                }
+                otherRb.AddForceAtPosition(
+                    impactDirection * 200f,
+                    impactPoint,
+                    ForceMode.Impulse
+                );
             }
         }
-
-        
     }
+
 
     void OnTriggerEnter(Collider other)
     {
@@ -252,5 +250,14 @@ public class BulletScript : MonoBehaviour
         rb.isKinematic = false;
 
         //rb.linearVelocity = transform.forward * bulletSpeed * 1.2f;
+    }
+
+    IEnumerator ShowHitEffect()
+    {
+        HitEffect.SetActive(true);
+
+        yield return new WaitForSeconds(.5f);
+
+        HitEffect.SetActive(false);
     }
 }
